@@ -33,30 +33,30 @@ async def upload_file(file: UploadFile = File(...)):
     if df.empty:
         raise HTTPException(status_code=400, detail="Файл не содержит данных или поврежден.")
 
-    print("Колонки в таблице:", df.columns.tolist())
-
-    salary_sum = 0
-    if "Зарплата($)" in df.columns:
-        try:
-            col = pd.to_numeric(df["Зарплата($)"], errors='coerce').fillna(0)
-            col = col.where(np.isfinite(col), 0)
-            print("Колонка Зарплата после обработки:", col.tolist())
-            salary_sum = float(col.sum())
-            print("Сумма Зарплаты:", salary_sum)
-        except Exception as e:
-            print("Ошибка при подсчете зарплаты:", e)
-            salary_sum = 0
-
     preview = df.head(3).to_dict(orient="records")
     for row in preview:
         for k, v in row.items():
             row[k] = safe_json_value(v)
 
+    numeric_analysis = {}
+    for col in df.columns:
+        if pd.api.types.is_numeric_dtype(df[col]):
+            try:
+                series = pd.to_numeric(df[col], errors="coerce").dropna()
+                numeric_analysis[col] = {
+                    "sum": float(series.sum()),
+                    "mean": float(series.mean()),
+                    "min": float(series.min()),
+                    "max": float(series.max())
+                }
+            except Exception as e:
+                numeric_analysis[col] = f"Ошибка при обработке: {str(e)}"
+
     stats = {
         "rows": int(df.shape[0]),
         "columns": int(df.shape[1]),
         "column_list": list(df.columns),
-        "salary_total": salary_sum
+        "numeric_analysis": numeric_analysis
     }
 
     return {
